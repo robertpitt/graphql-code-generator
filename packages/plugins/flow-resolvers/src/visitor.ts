@@ -4,12 +4,11 @@ import {
   indent,
   toPascalCase,
   DeclarationBlock,
-  BasicFlowVisitor,
   ScalarsMap,
   OperationVariablesToObject,
   getBaseTypeNode,
   wrapAstTypeWithModifiers
-} from 'graphql-codegen-flow';
+} from 'graphql-codegen-visitor-plugin-common';
 import {
   ObjectTypeDefinitionNode,
   FieldDefinitionNode,
@@ -25,6 +24,7 @@ import {
 } from 'graphql/language/ast';
 import { FlowResolversPluginConfig } from './index';
 import { GraphQLSchema, GraphQLObjectType } from 'graphql';
+import * as autoBind from 'auto-bind';
 
 export interface ParsedConfig {
   scalars: ScalarsMap;
@@ -34,7 +34,7 @@ export interface ParsedConfig {
   mapping: { [typeName: string]: string };
 }
 
-export class FlowResolversVisitor implements BasicFlowVisitor {
+export class FlowResolversVisitor {
   private _parsedConfig: ParsedConfig;
   private _collectedResolvers: { [key: string]: string } = {};
 
@@ -46,6 +46,7 @@ export class FlowResolversVisitor implements BasicFlowVisitor {
       convert: pluginConfig.namingConvention ? resolveExternalModuleAndFn(pluginConfig.namingConvention) : toPascalCase,
       typesPrefix: pluginConfig.typesPrefix || ''
     };
+    autoBind(this);
   }
 
   get scalars(): ScalarsMap {
@@ -106,7 +107,7 @@ export class FlowResolversVisitor implements BasicFlowVisitor {
       const original = parent[key];
       const realType = getBaseTypeNode(original.type).name.value;
       const mappedType = this._parsedConfig.mapping[realType]
-        ? wrapAstTypeWithModifiers(this._parsedConfig.mapping[realType], original.type)
+        ? wrapAstTypeWithModifiers('?')(this._parsedConfig.mapping[realType], original.type)
         : node.type;
       const subscriptionType = this._schema.getSubscriptionType();
       const isSubscriptionType = subscriptionType && subscriptionType.name === parentName;
@@ -166,7 +167,12 @@ export class FlowResolversVisitor implements BasicFlowVisitor {
     const directiveName = this.convertName(node.name + 'DirectiveResolver');
     const hasArguments = node.arguments && node.arguments.length > 0;
     const directiveArgs = hasArguments
-      ? new OperationVariablesToObject<FlowResolversVisitor, InputValueDefinitionNode>(this, node.arguments).string
+      ? new OperationVariablesToObject<InputValueDefinitionNode>(
+          this._parsedConfig.scalars,
+          this.convertName,
+          node.arguments,
+          wrapAstTypeWithModifiers('?')
+        ).string
       : '';
 
     return new DeclarationBlock()
