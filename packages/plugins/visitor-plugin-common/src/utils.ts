@@ -27,6 +27,10 @@ export function indent(str: string): string {
   return '  ' + str;
 }
 
+export interface DeclarationBlockConfig {
+  blockWrapper?: string;
+}
+
 export class DeclarationBlock {
   _export = false;
   _name = null;
@@ -35,6 +39,13 @@ export class DeclarationBlock {
   _content = null;
   _block = null;
   _nameGenerics = null;
+
+  constructor(private _config: DeclarationBlockConfig) {
+    this._config = {
+      blockWrapper: '',
+      ...this._config
+    };
+  }
 
   export(exp = true): DeclarationBlock {
     this._export = exp;
@@ -101,13 +112,13 @@ export class DeclarationBlock {
       }
 
       if (this._methodName) {
-        result += `${this._methodName}({
+        result += `${this._methodName}({${this._config.blockWrapper}
 ${this._block}
-})`;
+${this._config.blockWrapper}})`;
       } else {
-        result += `{
+        result += `{${this._config.blockWrapper}
 ${this._block}
-}`;
+${this._config.blockWrapper}}`;
       }
     } else if (this._content) {
       result += this._content;
